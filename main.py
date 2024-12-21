@@ -3,14 +3,16 @@ import openai
 from PIL import Image
 import io
 import os
+from dotenv import load_dotenv
+
+# Ielādē vides mainīgos no .env faila
+load_dotenv()
 
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="Ikona Ģenerators", page_icon="🎨", layout="centered")
 
-# Saglabā savu OpenAI API atslēgu drošā vietā
-# Ieteicams izmantot .env failu vai vides mainīgos
-# Šeit piemērs ar tiešo ievietošanu (NAV IETEICAMS)
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Iestati savu vides mainīgo
+# Iegūst OpenAI API atslēgu no vides mainīgajiem
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Funkcija, lai ģenerētu ikonu no teksta apraksta
 def generate_icon(description):
@@ -19,11 +21,10 @@ def generate_icon(description):
             prompt=description,
             n=1,
             size="256x256",  # Ikonas izmērs
-            response_format="b64_json"
+            response_format="url"  # Saite uz ģenerēto attēlu
         )
-        image_data = response['data'][0]['b64_json']
-        image = Image.open(io.BytesIO(base64.b64decode(image_data)))
-        return image
+        image_url = response['data'][0]['url']
+        return image_url
     except Exception as e:
         st.error(f"Kļūda ikonas ģenerēšanā: {e}")
         return None
@@ -41,16 +42,7 @@ if submit_button:
         st.warning("Lūdzu, ievadi teksta aprakstu ikonas ģenerēšanai.")
     else:
         with st.spinner('Ģenerēju ikonu...'):
-            icon = generate_icon(description)
-            if icon:
-                st.image(icon, caption="Ģenerētā Ikona", use_column_width=True)
-                # Saglabā ikonu laika grāmatā (optional)
-                buffer = io.BytesIO()
-                icon.save(buffer, format="PNG")
-                byte_im = buffer.getvalue()
-                st.download_button(
-                    label="Lejupielādēt Ikonu",
-                    data=byte_im,
-                    file_name="icon.png",
-                    mime="image/png",
-                )
+            icon_url = generate_icon(description)
+            if icon_url:
+                st.image(icon_url, caption="Ģenerētā Ikona", use_column_width=True)
+                st.markdown(f"[Lejupielādēt Ikonu]({icon_url})")
