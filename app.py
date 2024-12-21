@@ -3,6 +3,7 @@ import openai
 from PIL import Image
 import io
 import base64
+import requests
 
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="🎨 Ikona Ģenerators", page_icon="🎨", layout="centered")
