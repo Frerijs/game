@@ -8,7 +8,7 @@ import time
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="📖 AI Storybook Creator", page_icon="📚", layout="centered")
 
-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# Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
+# Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
 HUGGINGFACE_API_KEY = "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"
 
 if not HUGGINGFACE_API_KEY:
