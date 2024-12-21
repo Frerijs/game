@@ -1,3 +1,10 @@
+# Ignorēt .env failu, ja to izmanto
 .env
+
+# Ignorēt Python kompilētās failus
 __pycache__/
 *.pyc
+
+# Ignorēt OS specifiskus failus
+.DS_Store
+Thumbs.db
