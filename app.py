@@ -1,117 +1,98 @@
-import streamlit as st
-from PIL import Image
-import requests
-import io
-import os
-import time
+from flask import Flask, render_template, session, request
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import uuid
 
-# Iestatīt lapas virsrakstu un izskatu
-st.set_page_config(page_title="📖 AI Storybook Creator", page_icon="📚", layout="centered")
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app)
 
-# Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
-HUGGINGFACE_API_KEY = "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"
+# Spēles datubāze
+games = {}
 
-if not HUGGINGFACE_API_KEY:
-    st.error("HUGGINGFACE_API_KEY nav iestatīta. Lūdzu, iestatiet vides mainīgo `HUGGINGFACE_API_KEY`.")
-    st.stop()
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Funkcija, lai ģenerētu attēlu, izmantojot Hugging Face Inference API
-def generate_image(description, max_retries=5, delay=10):
-    attempt = 0
-    while attempt < max_retries:
-        try:
-            headers = {
-                "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
-            }
-            payload = {
-                "inputs": description,
-                "options": {
-                    "use_gpu": True  # Ja pieejams GPU
-                }
-            }
-            
-            # Sūta POST pieprasījumu uz Hugging Face Inference API
-            response = requests.post(
-                "https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4",
-                headers=headers,
-                json=payload
-            )
-            
-            if response.status_code == 200:
-                # Pārbauda, vai atbildē ir attēla dati
-                if 'image/' in response.headers.get('Content-Type', ''):
-                    image = Image.open(io.BytesIO(response.content))
-                    return image
-                else:
-                    # Ja nav attēla, mēģina izvilkt kļūdas ziņojumu no JSON
-                    error_info = response.json()
-                    error_message = error_info.get("error", "Nezināma kļūda.")
-                    st.error(f"Kļūda attēla ģenerēšanā: {error_message}")
-                    return None
-            elif response.status_code == 503:
-                # Modelis vēl ielādējas, atkārto pieprasījumu pēc pauzes
-                st.warning(f"Modelis vēl ielādējas. Atkārto pieprasījumu pēc {delay} sekundēm... (Mēģinājums {attempt + 1}/{max_retries})")
-                attempt += 1
-                time.sleep(delay)
-            else:
-                # Mēģina izvilkt kļūdas ziņojumu no JSON
-                try:
-                    error_info = response.json()
-                    error_message = error_info.get("error", "Nezināma kļūda.")
-                    st.error(f"Kļūda attēla ģenerēšanā: {error_message}")
-                except ValueError:
-                    st.error(f"Kļūda attēla ģenerēšanā: {response.status_code} - {response.text}")
-                return None
-        except Exception as e:
-            st.error(f"Kļūda attēla ģenerēšanā: {e}")
-            return None
-    st.error("Neizdevās ģenerēt attēlu pēc vairākiem mēģinājumiem.")
+@socketio.on('create_game')
+def handle_create_game():
+    game_id = str(uuid.uuid4())[:8]  # Ģenerē unikālu spēles ID
+    games[game_id] = {
+        'players': [],
+        'board': [''] * 9,
+        'current_turn': 'X',
+        'winner': None
+    }
+    join_room(game_id)
+    games[game_id]['players'].append(request.sid)
+    emit('game_created', {'game_id': game_id})
+
+@socketio.on('join_game')
+def handle_join_game(data):
+    game_id = data['game_id']
+    if game_id in games and len(games[game_id]['players']) < 2:
+        join_room(game_id)
+        games[game_id]['players'].append(request.sid)
+        emit('game_joined', {'game_id': game_id, 'board': games[game_id]['board'], 'current_turn': games[game_id]['current_turn']}, room=game_id)
+        emit('player_joined', {'msg': 'Another player has joined the game.'}, room=game_id)
+    else:
+        emit('error', {'msg': 'Game not found or already full.'})
+
+@socketio.on('make_move')
+def handle_make_move(data):
+    game_id = data['game_id']
+    position = data['position']
+    player = request.sid
+
+    if game_id not in games:
+        emit('error', {'msg': 'Game not found.'})
+        return
+
+    game = games[game_id]
+
+    if game['winner']:
+        emit('error', {'msg': 'Game has already been won.'})
+        return
+
+    if game['players'][game['current_turn_index(game_id, player)']] != player:
+        emit('error', {'msg': 'Not your turn.'})
+        return
+
+    if game['board'][position] == '':
+        game['board'][position] = game['current_turn']
+        emit('update_board', {'board': game['board'], 'current_turn': game['current_turn']}, room=game_id)
+        winner = check_winner(game['board'])
+        if winner:
+            game['winner'] = winner
+            emit('game_over', {'winner': winner}, room=game_id)
+        elif '' not in game['board']:
+            game['winner'] = 'Draw'
+            emit('game_over', {'winner': 'Draw'}, room=game_id)
+        else:
+            game['current_turn'] = 'O' if game['current_turn'] == 'X' else 'X'
+            emit('update_turn', {'current_turn': game['current_turn']}, room=game_id)
+    else:
+        emit('error', {'msg': 'Position already taken.'})
+
+def check_winner(board):
+    winning_combinations = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Rindiņi
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Kolonnas
+        [0, 4, 8], [2, 4, 6]              # Diagonāles
+    ]
+
+    for combo in winning_combinations:
+        a, b, c = combo
+        if board[a] == board[b] == board[c] != '':
+            return board[a]
     return None
 
-# Funkcija, lai ģenerētu attēlus katrai stāsta daļai
-def generate_storybook(story_text):
-    paragraphs = story_text.split('\n')
-    images = []
-    for idx, paragraph in enumerate(paragraphs, start=1):
-        if paragraph.strip() == "":
-            continue
-        st.info(f"Ģenerēju attēlu iekšējam stāsta daļai {idx}...")
-        image = generate_image(paragraph)
-        if image:
-            images.append((paragraph, image))
-        else:
-            st.error(f"Neizdevās ģenerēt attēlu iekšējam stāsta daļai {idx}.")
-    return images
+def handle_disconnect():
+    # Implementēt, ja nepieciešams
+    pass
 
-# Lietotāja interfeiss
-st.title("📖 AI Storybook Creator")
-st.write("Create your own illustrated storybook by entering your story below. Each paragraph will have a corresponding AI-generated image.")
+@socketio.on('disconnect')
+def handle_disconnect_event():
+    handle_disconnect()
 
-with st.form(key='storybook_form'):
-    story_input = st.text_area("Enter your story here:", height=300, placeholder="Write your story, separating paragraphs with a newline...")
-    submit_button = st.form_submit_button(label='Create Storybook')
-
-if submit_button:
-    if story_input.strip() == "":
-        st.warning("Lūdzu, ievadiet stāstu, lai veidotu stāsta grāmatu.")
-    else:
-        with st.spinner('Creating your storybook...'):
-            story_images = generate_storybook(story_input)
-            if story_images:
-                for idx, (paragraph, image) in enumerate(story_images, start=1):
-                    st.markdown(f"### Page {idx}")
-                    st.write(paragraph)
-                    st.image(image, caption=f"Illustration for Page {idx}", use_container_width=True)
-                    
-                    # Lejupielādes poga katram attēlam
-                    buf = io.BytesIO()
-                    image.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
-                    st.download_button(
-                        label=f"Download Illustration {idx}",
-                        data=byte_im,
-                        file_name=f"illustration_page_{idx}.png",
-                        mime="image/png",
-                    )
-            else:
-                st.error("Neizdevās veidot stāsta grāmatu.")
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=5000)
