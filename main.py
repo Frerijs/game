@@ -3,14 +3,17 @@ import openai
 from PIL import Image
 import io
 import os
+from dotenv import load_dotenv
+import base64
+
+# Ielādē vides mainīgos
+load_dotenv()
 
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="Ikona Ģenerators", page_icon="🎨", layout="centered")
 
-# Saglabā savu OpenAI API atslēgu drošā vietā
-# Ieteicams izmantot .env failu vai vides mainīgos
-# Šeit piemērs ar tiešo ievietošanu (NAV IETEICAMS)
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Iestati savu vides mainīgo
+# Iegūst OpenAI API atslēgu no vides mainīgajiem
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Funkcija, lai ģenerētu ikonu no teksta apraksta
 def generate_icon(description):
