@@ -7,8 +7,12 @@ import os
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="🎨 AI Avatar Generator", page_icon="🖼️", layout="centered")
 
-# Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
-HUGGINGFACE_API_KEY = "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"
+# Iegūst Hugging Face API atslēgu no vides mainīgajiem
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+
+if not HUGGINGFACE_API_KEY:
+    st.error("HUGGINGFACE_API_KEY nav iestatīta. Lūdzu, iestatiet vides mainīgo `HUGGINGFACE_API_KEY`.")
+    st.stop()
 
 # Funkcija, lai ģenerētu avataru, izmantojot Hugging Face Inference API
 def generate_avatar(description):
@@ -59,8 +63,6 @@ st.write("Customize your avatar by selecting various attributes and styles. Clic
 with st.form(key='avatar_form'):
     # Avataru atribūtu izvēle
     hair_style = st.selectbox("Hair Style", ["Short", "Long", "Curly", "Straight", "Bald"])
-    hair_color = st.color_picker("Hair Color", "#8B4513")
-    eye_color = st.color_picker("Eye Color", "#0000FF")
     outfit = st.selectbox("Outfit", ["Casual", "Formal", "Sporty", "Fantasy", "Sci-Fi"])
     background = st.selectbox("Background", ["Plain", "Nature", "Cityscape", "Abstract", "Space"])
     style = st.selectbox("Art Style", ["Cartoon", "Realistic", "Futuristic", "Minimalist", "Vintage"])
@@ -69,7 +71,7 @@ with st.form(key='avatar_form'):
 
 if submit_button:
     # Sagatavot teksta aprakstu, balstoties uz lietotāja izvēlēm
-    description = f"A {style} style avatar with {hair_style.lower()} hair colored {hair_color}, {eye_color} eyes, wearing {outfit.lower()} attire, set against a {background.lower()} background."
+    description = f"A {style} style avatar with {hair_style.lower()} hair, wearing {outfit.lower()} attire, set against a {background.lower()} background."
     
     with st.spinner('Generating your avatar...'):
         avatar_image = generate_avatar(description)
@@ -87,4 +89,4 @@ if submit_button:
                 mime="image/png",
             )
         else:
-            st.error("Failed to generate avatar.")
+            st.error("Neizdevās ģenerēt avataru.")
