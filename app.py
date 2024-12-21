@@ -1,148 +1,234 @@
-import pygame
-import random
-import sys
+import streamlit as st
+import streamlit.components.v1 as components
 
-# Inicializē Pygame
-pygame.init()
+# Iestatīt lapas virsrakstu un izskatu
+st.set_page_config(page_title="🦖 Dino Runner", layout="centered")
 
-# Krāsu definīcijas
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (200, 200, 200)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
+st.title("🦖 Dino Runner ar Streamlit")
 
-# Ekrāna izmēri
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 400
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Dino Runner")
+st.write("""
+Spēlē Dino Runner spēli tieši šeit! Nospied Space taustiņu vai Augšējo bultiņu, lai vadītu T-Rex un izvairītos no šķēršļiem.
+""")
 
-# FPS kontrole
-clock = pygame.time.Clock()
-FPS = 60
+# HTML un JavaScript Dino Runner kods
+dino_game_html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dino Runner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 2px solid #000000;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #333333;
+            font-family: Arial, sans-serif;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border: 2px solid #555555;
+            text-align: center;
+            display: none;
+            font-family: Arial, sans-serif;
+        }
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 10px;
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #restartButton:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="gameOver">
+        <h1>Game Over!</h1>
+        <p>Your Score: <span id="finalScore">0</span></p>
+        <button id="restartButton">Restart Game</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverDisplay = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
 
-# Dinas atribūti
-DINO_WIDTH = 40
-DINO_HEIGHT = 60
-dino_x = 50
-dino_y = SCREEN_HEIGHT - DINO_HEIGHT - 20
-dino_vel_y = 0
-is_jumping = False
-jump_height = 15
+        // Spēles iestatījumi
+        const gravity = 0.6;
+        const jumpStrength = -12;
+        let gameSpeed = 5;
+        let score = 0;
+        let gameOver = false;
 
-# Skrišanas zeme
-GROUND_HEIGHT = SCREEN_HEIGHT - 20
-ground = pygame.Rect(0, GROUND_HEIGHT, SCREEN_WIDTH, 20)
+        // Dinas objektu
+        const dino = {
+            x: 50,
+            y: 300,
+            width: 40,
+            height: 60,
+            dy: 0,
+            jumping: false,
+            color: 'green'
+        };
 
-# Šķēršļi
-obstacle_width = 20
-obstacle_height = 40
-obstacle_speed = 5
-obstacles = []
-spawn_obstacle_event = pygame.USEREVENT + 1
-pygame.time.set_timer(spawn_obstacle_event, 1500)  # Ģenerē šķēršļus ik pēc 1.5 sekundēm
+        // Šķēršļu masīvs
+        const obstacles = [];
 
-# Spēles stāvoklis
-game_over = False
-score = 0
-font = pygame.font.SysFont(None, 36)
+        // Šķēršļu iestatījumi
+        const obstacleFrequency = 1500; // milisekundes
+        const obstacleWidth = 20;
+        const obstacleHeight = 40;
+        const obstacleColor = 'red';
 
-def draw_dino(x, y):
-    pygame.draw.rect(screen, GREEN, (x, y, DINO_WIDTH, DINO_HEIGHT))
+        // Laika kontrole
+        let lastObstacleTime = Date.now();
 
-def draw_obstacle(obstacle):
-    pygame.draw.rect(screen, RED, obstacle)
+        // Spēles sākšana
+        function startGame() {
+            document.addEventListener('keydown', handleKeyDown);
+            requestAnimationFrame(gameLoop);
+        }
 
-def display_score(score):
-    text = font.render(f"Score: {score}", True, BLACK)
-    screen.blit(text, (SCREEN_WIDTH - 150, 10))
+        // Vadība
+        function handleKeyDown(e) {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && !dino.jumping) {
+                dino.dy = jumpStrength;
+                dino.jumping = true;
+            }
+        }
 
-def game_loop():
-    global dino_y, dino_vel_y, is_jumping, game_over, score
+        // Šķēršļu ģenerēšana
+        function spawnObstacle() {
+            const obstacle = {
+                x: canvas.width,
+                y: 300,
+                width: obstacleWidth,
+                height: obstacleHeight,
+                color: obstacleColor
+            };
+            obstacles.push(obstacle);
+        }
 
-    while True:
-        clock.tick(FPS)
-        screen.fill(WHITE)
+        // Saskarsme pārbaude
+        function checkCollision(dino, obstacle) {
+            return (
+                dino.x < obstacle.x + obstacle.width &&
+                dino.x + dino.width > obstacle.x &&
+                dino.y < obstacle.y + obstacle.height &&
+                dino.y + dino.height > obstacle.y
+            );
+        }
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE or event.key == pygame.K_UP:
-                    if not is_jumping:
-                        is_jumping = True
-                        dino_vel_y = -jump_height
-            if event.type == spawn_obstacle_event:
-                obstacle_x = SCREEN_WIDTH
-                obstacle = pygame.Rect(obstacle_x, GROUND_HEIGHT - obstacle_height, obstacle_width, obstacle_height)
-                obstacles.append(obstacle)
+        // Spēles cikls
+        function gameLoop() {
+            if (gameOver) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                gameOverDisplay.style.display = 'block';
+                finalScoreDisplay.textContent = score;
+                return;
+            }
 
-        # Dinas kustība
-        if is_jumping:
-            dino_y += dino_vel_y
-            dino_vel_y += 1  # Gravitation effect
+            // Fona atjaunošana
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if dino_y >= SCREEN_HEIGHT - DINO_HEIGHT - 20:
-                dino_y = SCREEN_HEIGHT - DINO_HEIGHT - 20
-                is_jumping = False
-                dino_vel_y = 0
+            // Dinas kustība
+            dino.dy += gravity;
+            dino.y += dino.dy;
 
-        # Šķēršļu kustība
-        for obstacle in obstacles[:]:
-            obstacle.x -= obstacle_speed
-            if obstacle.right < 0:
-                obstacles.remove(obstacle)
-                score += 1
+            if (dino.y + dino.height >= 300) {
+                dino.y = 300 - dino.height;
+                dino.dy = 0;
+                dino.jumping = false;
+            }
 
-        # Saskarsme
-        dino_rect = pygame.Rect(dino_x, dino_y, DINO_WIDTH, DINO_HEIGHT)
-        for obstacle in obstacles:
-            if dino_rect.colliderect(obstacle):
-                game_over = True
+            // Dinas zīmēšana
+            ctx.fillStyle = dino.color;
+            ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
 
-        if game_over:
-            game_over_screen(score)
-            break
+            // Šķēršļu kustība un zīmēšana
+            for (let i = 0; i < obstacles.length; i++) {
+                const obstacle = obstacles[i];
+                obstacle.x -= gameSpeed;
+                ctx.fillStyle = obstacle.color;
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-        # Zeme un spēles elementi
-        pygame.draw.rect(screen, GRAY, ground)
-        draw_dino(dino_x, dino_y)
-        for obstacle in obstacles:
-            draw_obstacle(obstacle)
-        display_score(score)
+                // Saskarsme
+                if (checkCollision(dino, obstacle)) {
+                    gameOver = true;
+                }
 
-        pygame.display.flip()
+                // Punktu palielināšana, kad šķērslis iziet no ekrāna
+                if (obstacle.x + obstacle.width < 0) {
+                    obstacles.splice(i, 1);
+                    i--;
+                    score++;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                }
+            }
 
-def game_over_screen(final_score):
-    while True:
-        screen.fill(WHITE)
-        game_over_text = font.render("Game Over!", True, RED)
-        score_text = font.render(f"Your Score: {final_score}", True, BLACK)
-        restart_text = font.render("Press R to Restart or Q to Quit", True, BLACK)
+            // Šķēršļu ģenerēšana
+            const currentTime = Date.now();
+            if (currentTime - lastObstacleTime > obstacleFrequency) {
+                spawnObstacle();
+                lastObstacleTime = currentTime;
+            }
 
-        screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 60))
-        screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2 - 20))
-        screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
+            // Spēles ātruma palielināšana pakāpeniski
+            if (score % 5 === 0 && score !== 0) {
+                gameSpeed += 0.5;
+            }
 
-        pygame.display.flip()
+            requestAnimationFrame(gameLoop);
+        }
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    # Restartē spēli
-                    st.session_state.board = [''] * 9
-                    st.session_state.current_player = 'X'
-                    st.session_state.game_over = False
-                    st.session_state.winner = None
-                    game_loop()
-                if event.key == pygame.K_q:
-                    pygame.quit()
-                    sys.exit()
+        // Restartēšana
+        restartButton.addEventListener('click', () => {
+            // Resetē spēles stāvokli
+            obstacles.length = 0;
+            gameSpeed = 5;
+            score = 0;
+            gameOver = false;
+            scoreDisplay.textContent = `Score: ${score}`;
+            gameOverDisplay.style.display = 'none';
+            dino.y = 300 - dino.height;
+            dino.dy = 0;
+            dino.jumping = false;
+            requestAnimationFrame(gameLoop);
+        });
 
-if __name__ == "__main__":
-    game_loop()
+        startGame();
+    </script>
+</body>
+</html>
+"""
+
+# Iebūvē Dino Runner spēli ar HTML un JavaScript
+components.html(dino_game_html, height=420)
