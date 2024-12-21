@@ -1,9 +1,7 @@
 import streamlit as st
-import openai
 from PIL import Image
-import io
-import base64
 import requests
+import io
 
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="🎨 Ikona Ģenerators", page_icon="🎨", layout="centered")
@@ -29,9 +27,15 @@ def generate_icon(description):
             json=payload
         )
         if response.status_code == 200:
-            image_bytes = response.content
-            image = Image.open(io.BytesIO(image_bytes))
-            return image
+            # Hugging Face parasti atgriež saiti uz ģenerēto attēlu
+            image_url = response.json()["url"]
+            image_response = requests.get(image_url)
+            if image_response.status_code == 200:
+                image = Image.open(io.BytesIO(image_response.content))
+                return image
+            else:
+                st.error("Neizdevās lejupielādēt ģenerēto ikonu.")
+                return None
         else:
             st.error(f"Kļūda ikonas ģenerēšanā: {response.status_code} - {response.text}")
             return None
