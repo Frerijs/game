@@ -2,130 +2,215 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>🎮 Multiplayer Tic-Tac-Toe</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
+    <title>Dino Runner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 2px solid #000000;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #333333;
+            font-family: Arial, sans-serif;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border: 2px solid #555555;
+            text-align: center;
+            display: none;
+            font-family: Arial, sans-serif;
+        }
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 10px;
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #restartButton:hover {
+            background-color: #218838;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎮 Multiplayer Tic-Tac-Toe</h1>
-        <div id="gameArea">
-            <div id="createJoin">
-                <button id="createBtn">Create Game</button>
-                <input type="text" id="gameIdInput" placeholder="Enter Game ID">
-                <button id="joinBtn">Join Game</button>
-            </div>
-            <div id="gameInfo" style="display:none;">
-                <p>Game ID: <span id="gameIdDisplay"></span></p>
-                <p>Current Turn: <span id="currentTurnDisplay"></span></p>
-                <div id="board">
-                    <div class="cell" data-index="0"></div>
-                    <div class="cell" data-index="1"></div>
-                    <div class="cell" data-index="2"></div>
-                    <div class="cell" data-index="3"></div>
-                    <div class="cell" data-index="4"></div>
-                    <div class="cell" data-index="5"></div>
-                    <div class="cell" data-index="6"></div>
-                    <div class="cell" data-index="7"></div>
-                    <div class="cell" data-index="8"></div>
-                </div>
-                <div id="result"></div>
-                <button id="restartBtn" style="display:none;">Restart Game</button>
-            </div>
-        </div>
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="gameOver">
+        <h1>Game Over!</h1>
+        <p>Your Score: <span id="finalScore">0</span></p>
+        <button id="restartButton">Restart Game</button>
     </div>
-
     <script>
-        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverDisplay = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
 
-        const createBtn = document.getElementById('createBtn');
-        const joinBtn = document.getElementById('joinBtn');
-        const gameIdInput = document.getElementById('gameIdInput');
-        const gameIdDisplay = document.getElementById('gameIdDisplay');
-        const currentTurnDisplay = document.getElementById('currentTurnDisplay');
-        const gameInfo = document.getElementById('gameInfo');
-        const board = document.getElementById('board');
-        const result = document.getElementById('result');
-        const restartBtn = document.getElementById('restartBtn');
+        // Game settings
+        const gravity = 0.6;
+        const jumpStrength = -12;
+        let gameSpeed = 5;
+        let score = 0;
+        let gameOverFlag = false;
 
-        let currentGameId = '';
-        let myTurn = false;
-
-        createBtn.onclick = () => {
-            socket.emit('create_game');
+        // Dino object
+        const dino = {
+            x: 50,
+            y: 300,
+            width: 40,
+            height: 60,
+            dy: 0,
+            jumping: false,
+            color: 'green'
         };
 
-        joinBtn.onclick = () => {
-            const gameId = gameIdInput.value.trim();
-            if (gameId) {
-                socket.emit('join_game', {'game_id': gameId});
+        // Obstacles array
+        const obstacles = [];
+
+        // Obstacle settings
+        const obstacleFrequency = 1500; // milliseconds
+        const obstacleWidth = 20;
+        const obstacleHeight = 40;
+        const obstacleColor = 'red';
+
+        // Timing
+        let lastObstacleTime = Date.now();
+
+        // Start game
+        function startGame() {
+            document.addEventListener('keydown', handleKeyDown);
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Handle key press
+        function handleKeyDown(e) {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && !dino.jumping) {
+                dino.dy = jumpStrength;
+                dino.jumping = true;
             }
-        };
+        }
 
-        socket.on('game_created', (data) => {
-            currentGameId = data.game_id;
-            gameIdDisplay.textContent = currentGameId;
-            currentTurnDisplay.textContent = 'X';
-            gameInfo.style.display = 'block';
-            document.getElementById('createJoin').style.display = 'none';
-            myTurn = true;
-        });
-
-        socket.on('game_joined', (data) => {
-            currentGameId = data.game_id;
-            gameIdDisplay.textContent = currentGameId;
-            currentTurnDisplay.textContent = data.current_turn;
-            gameInfo.style.display = 'block';
-            document.getElementById('createJoin').style.display = 'none';
-            myTurn = false;
-        });
-
-        socket.on('player_joined', (data) => {
-            alert(data.msg);
-        });
-
-        socket.on('update_board', (data) => {
-            const boardData = data.board;
-            board.querySelectorAll('.cell').forEach((cell, index) => {
-                cell.textContent = boardData[index];
-            });
-            currentTurnDisplay.textContent = data.current_turn;
-            myTurn = data.current_turn === 'X' && socket.id === games[currentGameId]['players'][0] ||
-                      data.current_turn === 'O' && socket.id === games[currentGameId]['players'][1];
-        });
-
-        socket.on('update_turn', (data) => {
-            currentTurnDisplay.textContent = data.current_turn;
-            myTurn = data.current_turn === 'X' && socket.id === games[currentGameId]['players'][0] ||
-                      data.current_turn === 'O' && socket.id === games[currentGameId]['players'][1];
-        });
-
-        socket.on('game_over', (data) => {
-            if (data.winner === 'Draw') {
-                result.textContent = "It's a Draw!";
-            } else {
-                result.textContent = `Player ${data.winner} Wins!`;
-            }
-            restartBtn.style.display = 'block';
-        });
-
-        socket.on('error', (data) => {
-            alert(data.msg);
-        });
-
-        board.querySelectorAll('.cell').forEach(cell => {
-            cell.onclick = () => {
-                if (!myTurn || cell.textContent !== '' || result.textContent !== "") {
-                    return;
-                }
-                const index = cell.getAttribute('data-index');
-                socket.emit('make_move', {'game_id': currentGameId, 'position': parseInt(index)});
+        // Spawn obstacle
+        function spawnObstacle() {
+            const obstacle = {
+                x: canvas.width,
+                y: 300,
+                width: obstacleWidth,
+                height: obstacleHeight,
+                color: obstacleColor
             };
+            obstacles.push(obstacle);
+        }
+
+        // Collision detection
+        function checkCollision(dino, obstacle) {
+            return (
+                dino.x < obstacle.x + obstacle.width &&
+                dino.x + dino.width > obstacle.x &&
+                dino.y < obstacle.y + obstacle.height &&
+                dino.y + dino.height > obstacle.y
+            );
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (gameOverFlag) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                gameOverDisplay.style.display = 'block';
+                finalScoreDisplay.textContent = score;
+                return;
+            }
+
+            // Clear background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Dino movement
+            dino.dy += gravity;
+            dino.y += dino.dy;
+
+            if (dino.y + dino.height >= 300) {
+                dino.y = 300 - dino.height;
+                dino.dy = 0;
+                dino.jumping = false;
+            }
+
+            // Draw dino
+            ctx.fillStyle = dino.color;
+            ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+
+            // Move and draw obstacles
+            for (let i = 0; i < obstacles.length; i++) {
+                const obstacle = obstacles[i];
+                obstacle.x -= gameSpeed;
+                ctx.fillStyle = obstacle.color;
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+
+                // Collision
+                if (checkCollision(dino, obstacle)) {
+                    gameOverFlag = true;
+                }
+
+                // Remove off-screen obstacles and update score
+                if (obstacle.x + obstacle.width < 0) {
+                    obstacles.splice(i, 1);
+                    i--;
+                    score++;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                }
+            }
+
+            // Spawn new obstacles
+            const currentTime = Date.now();
+            if (currentTime - lastObstacleTime > obstacleFrequency) {
+                spawnObstacle();
+                lastObstacleTime = currentTime;
+            }
+
+            // Increase game speed every 5 points
+            if (score % 5 === 0 && score !== 0) {
+                gameSpeed += 0.5;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Restart game
+        restartButton.addEventListener('click', () => {
+            // Reset game state
+            obstacles.length = 0;
+            gameSpeed = 5;
+            score = 0;
+            gameOverFlag = false;
+            scoreDisplay.textContent = `Score: ${score}`;
+            gameOverDisplay.style.display = 'none';
+            dino.y = 300 - dino.height;
+            dino.dy = 0;
+            dino.jumping = false;
+            requestAnimationFrame(gameLoop);
         });
 
-        restartBtn.onclick = () => {
-            location.reload();
-        };
+        startGame();
     </script>
 </body>
 </html>
