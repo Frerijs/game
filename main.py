@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image, ImageDraw
 import random
 
-# Izmantošas sesijas stāvokli spēles stāvokļa uzturēšanai
+# Izmanto sesijas stāvokli spēles stāvokļa uzturēšanai
 if 'ball_position' not in st.session_state:
     st.session_state.ball_position = [50, 50]  # Sākuma pozīcija [x, y]
     st.session_state.level = 1
@@ -21,9 +21,9 @@ def generate_obstacles(level):
         obstacles.append((x, y, width, height))
     return obstacles
 
-# Funkcija, lai zīmētu spēles laukumu
+# Izlabotā funkcija, lai zīmētu spēles laukumu
 def draw_game(ball_pos, obstacles):
-    img = Image.new('RGB', (500, 500), color = 'white')
+    img = Image.new('RGB', (500, 500), color='white')
     draw = ImageDraw.Draw(img)
     
     # Zīmē bumbiņu
@@ -33,7 +33,8 @@ def draw_game(ball_pos, obstacles):
     
     # Zīmē šķēršļus
     for obs in obstacles:
-        draw.rectangle(obs, fill='red')
+        x, y, w, h = obs
+        draw.rectangle([x, y, x + w, y + h], fill='red')
     
     return img
 
