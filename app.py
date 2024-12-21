@@ -4,11 +4,11 @@ import requests
 import io
 import os
 
-# Iestatīt lapas virsrakstu un izskatu
+## Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="🎨 AI Avatar Generator", page_icon="🖼️", layout="centered")
 
-# Iegūst Hugging Face API atslēgu no vides mainīgajiem
-HUGGINGFACE_API_KEY = os.getenv("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")
+# Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
+HUGGINGFACE_API_KEY = "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"
 
 if not HUGGINGFACE_API_KEY:
     st.error("HUGGINGFACE_API_KEY nav iestatīta. Lūdzu, iestatiet vides mainīgo `HUGGINGFACE_API_KEY`.")
