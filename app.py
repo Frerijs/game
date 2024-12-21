@@ -2,15 +2,16 @@ import streamlit as st
 from PIL import Image
 import requests
 import io
+import os
 
 # Iestatīt lapas virsrakstu un izskatu
-st.set_page_config(page_title="🎨 Icon Generator", page_icon="🎨", layout="centered")
+st.set_page_config(page_title="🎨 AI Avatar Generator", page_icon="🖼️", layout="centered")
 
 # Jūsu Hugging Face API atslēga (⚠️ Nav ieteicams publiski izmantot)
 HUGGINGFACE_API_KEY = "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"
 
-# Funkcija, lai ģenerētu ikonu, izmantojot Hugging Face Inference API
-def generate_icon(description):
+# Funkcija, lai ģenerētu avataru, izmantojot Hugging Face Inference API
+def generate_avatar(description):
     try:
         headers = {
             "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
@@ -36,47 +37,54 @@ def generate_icon(description):
                 # Ja nav attēla, mēģina izvilkt kļūdas ziņojumu no JSON
                 error_info = response.json()
                 error_message = error_info.get("error", "Nezināma kļūda.")
-                st.error(f"Kļūda ikonas ģenerēšanā: {error_message}")
+                st.error(f"Kļūda avatara ģenerēšanā: {error_message}")
                 return None
         else:
             # Mēģina izvilkt kļūdas ziņojumu no JSON
             try:
                 error_info = response.json()
                 error_message = error_info.get("error", "Nezināma kļūda.")
-                st.error(f"Kļūda ikonas ģenerēšanā: {error_message}")
+                st.error(f"Kļūda avatara ģenerēšanā: {error_message}")
             except ValueError:
-                st.error(f"Kļūda ikonas ģenerēšanā: {response.status_code} - {response.text}")
+                st.error(f"Kļūda avatara ģenerēšanā: {response.status_code} - {response.text}")
             return None
     except Exception as e:
-        st.error(f"Kļūda ikonas ģenerēšanā: {e}")
+        st.error(f"Kļūda avatara ģenerēšanā: {e}")
         return None
 
 # Lietotāja interfeiss
-st.title("🎨 Icon Generator")
-st.write("Enter a text description to generate an icon. Examples: 'blue heart with white outline', 'gold smiley face'.")
+st.title("🎨 AI Avatar Generator")
+st.write("Customize your avatar by selecting various attributes and styles. Click 'Generate Avatar' to create your unique avatar.")
 
-with st.form(key='icon_form'):
-    description = st.text_input("Text Description", "e.g., blue heart with white outline")
-    submit_button = st.form_submit_button(label='Generate Icon')
+with st.form(key='avatar_form'):
+    # Avataru atribūtu izvēle
+    hair_style = st.selectbox("Hair Style", ["Short", "Long", "Curly", "Straight", "Bald"])
+    hair_color = st.color_picker("Hair Color", "#8B4513")
+    eye_color = st.color_picker("Eye Color", "#0000FF")
+    outfit = st.selectbox("Outfit", ["Casual", "Formal", "Sporty", "Fantasy", "Sci-Fi"])
+    background = st.selectbox("Background", ["Plain", "Nature", "Cityscape", "Abstract", "Space"])
+    style = st.selectbox("Art Style", ["Cartoon", "Realistic", "Futuristic", "Minimalist", "Vintage"])
+    
+    submit_button = st.form_submit_button(label='Generate Avatar')
 
 if submit_button:
-    if description.strip() == "":
-        st.warning("Lūdzu, ievadi teksta aprakstu ikonas ģenerēšanai.")
-    else:
-        with st.spinner('Ģenerēju ikonu...'):
-            icon_image = generate_icon(description)
-            if icon_image:
-                st.image(icon_image, caption="Generated Icon", use_container_width=True)
-                
-                # Lejupielādes poga
-                buf = io.BytesIO()
-                icon_image.save(buf, format="PNG")
-                byte_im = buf.getvalue()
-                st.download_button(
-                    label="Download Icon",
-                    data=byte_im,
-                    file_name="icon.png",
-                    mime="image/png",
-                )
-            else:
-                st.error("Neizdevās ģenerēt ikonu.")
+    # Sagatavot teksta aprakstu, balstoties uz lietotāja izvēlēm
+    description = f"A {style} style avatar with {hair_style.lower()} hair colored {hair_color}, {eye_color} eyes, wearing {outfit.lower()} attire, set against a {background.lower()} background."
+    
+    with st.spinner('Generating your avatar...'):
+        avatar_image = generate_avatar(description)
+        if avatar_image:
+            st.image(avatar_image, caption="Your Generated Avatar", use_container_width=True)
+            
+            # Lejupielādes poga
+            buf = io.BytesIO()
+            avatar_image.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            st.download_button(
+                label="Download Avatar",
+                data=byte_im,
+                file_name="avatar.png",
+                mime="image/png",
+            )
+        else:
+            st.error("Failed to generate avatar.")
