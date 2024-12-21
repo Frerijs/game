@@ -8,7 +8,7 @@ import os
 st.set_page_config(page_title="🎨 AI Avatar Generator", page_icon="🖼️", layout="centered")
 
 # Iegūst Hugging Face API atslēgu no vides mainīgajiem
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+HUGGINGFACE_API_KEY = os.getenv("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")
 
 if not HUGGINGFACE_API_KEY:
     st.error("HUGGINGFACE_API_KEY nav iestatīta. Lūdzu, iestatiet vides mainīgo `HUGGINGFACE_API_KEY`.")
