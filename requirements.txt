@@ -2,3 +2,4 @@ streamlit
 openai
 Pillow
 requests
+flask flask-socketio eventlet
