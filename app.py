@@ -1,77 +1,55 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
+import requests
 import io
 
 # Iestatīt lapas virsrakstu un izskatu
 st.set_page_config(page_title="🎨 Ikona Ģenerators", page_icon="🎨", layout="centered")
 
-# Funkcija, lai izveidotu ikonu no apraksta
+# API Atslēga (Nav ieteicams)
+HUGGINGFACE_API_KEY = "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"
+
+# Funkcija, lai ģenerētu ikonu no teksta apraksta, izmantojot Hugging Face Inference API
 def generate_icon(description):
-    # Vienkārša ikonu ģenerēšana balstoties uz atslēgvārdiem
-    description = description.lower()
-
-    # Izveido baltu fonu ar caurspīdīgumu
-    img_size = (256, 256)
-    image = Image.new("RGBA", img_size, (255, 255, 255, 0))
-    draw = ImageDraw.Draw(image)
-
-    # Definē krāsas
-    colors = {
-        "sirds": "red",
-        "zvaigzne": "gold",
-        "aplis": "blue",
-        "smaidiņš": "yellow",
-        "zelts": "goldenrod",
-        "sarkans": "red",
-        "zils": "blue",
-        "zeltains": "goldenrod",
-        "balts": "white",
-        "melns": "black",
-    }
-
-    # Definē formas
-    if "sirds" in description:
-        # Sirds
-        draw.polygon([(128, 40), (160, 120), (240, 120), (176, 180),
-                      (208, 260), (128, 220), (48, 260), (80, 180),
-                      (16, 120), (96, 120)], fill=colors.get("sirds", "red"))
-    elif "zvaigzne" in description:
-        # Zvaigzne
-        draw.polygon([(128, 20), (150, 100), (240, 100), (170, 150),
-                      (190, 230), (128, 180), (66, 230), (86, 150),
-                      (16, 100), (106, 100)], fill=colors.get("zvaigzne", "gold"))
-    elif "aplis" in description:
-        # Aplis
-        color = "blue"
-        if "zils" in description:
-            color = colors.get("zils", "blue")
-        elif "sarkans" in description:
-            color = colors.get("sarkans", "red")
-        draw.ellipse([(32, 32), (224, 224)], outline=color, width=5)
-    elif "smaidiņš" in description:
-        # Smaidiņš
-        draw.arc([(64, 64), (192, 192)], start=200, end=340, fill=colors.get("smaidiņš", "yellow"), width=5)
-        draw.ellipse([(100, 100), (120, 120)], fill=colors.get("smaidiņš", "yellow"))
-        draw.ellipse([(160, 100), (180, 120)], fill=colors.get("smaidiņš", "yellow"))
-    else:
-        # Ja nav atbilstoša atslēgvārda, zīmē vienkāršu aplis ar tekstu
-        draw.ellipse([(32, 32), (224, 224)], outline="gray", width=5)
-        try:
-            font = ImageFont.truetype("arial.ttf", 24)
-        except IOError:
-            font = ImageFont.load_default()
-        text = "Icon"
-        text_width, text_height = draw.textsize(text, font=font)
-        draw.text(((256 - text_width) / 2, (256 - text_height) / 2), text, fill="gray", font=font)
-
-    return image
+    try:
+        headers = {
+            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
+        }
+        payload = {
+            "inputs": description,
+            "options": {
+                "use_gpu": True  # Ja pieejams GPU
+            }
+        }
+        # Izsauc Inference API modeli
+        response = requests.post(
+            "https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4",
+            headers=headers,
+            json=payload
+        )
+        if response.status_code == 200:
+            # Hugging Face Inference API parasti atgriež attēla bināro datus
+            image = Image.open(io.BytesIO(response.content))
+            return image
+        else:
+            # Ja tiek atgriezts JSON ar kļūdu, parādīt kļūdas ziņojumu
+            try:
+                error_info = response.json()
+                error_message = error_info.get("error", "Nezināma kļūda.")
+                st.error(f"Kļūda ikonas ģenerēšanā: {error_message}")
+            except ValueError:
+                st.error(f"Kļūda ikonas ģenerēšanā: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"Kļūda ikonas ģenerēšanā: {e}")
+        return None
 
 # Lietotāja interfeiss
 st.title("🎨 Ikona Ģenerators")
-st.write("Ievadi teksta aprakstu, lai ģenerētu ikonu. Piemēram, 'sirds', 'zvaigzne', 'aplis', 'smaidiņš'.")
+st.write("Ievadi teksta aprakstu, lai ģenerētu ikonu. Piemēri: 'zila sirds ar baltu kontūru', 'zelts smaidiņš'.")
 
 with st.form(key='icon_form'):
-    description = st.text_input("Teksta apraksts", "Piemērs: sirds")
+    description = st.text_input("Teksta apraksts", "Piemērs: zila sirds ar baltu kontūru")
     submit_button = st.form_submit_button(label='Ģenerēt Ikonu')
 
 if submit_button:
@@ -93,5 +71,3 @@ if submit_button:
                     file_name="icon.png",
                     mime="image/png",
                 )
-            else:
-                st.error("Neizdevās ģenerēt ikonu.")
