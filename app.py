@@ -2,6 +2,7 @@ import streamlit as st
 from PIL import Image
 import requests
 import io
+import time
 
 # Set page title and layout
 st.set_page_config(page_title="🎨 Icon Generator", page_icon="🎨", layout="centered")
@@ -9,57 +10,63 @@ st.set_page_config(page_title="🎨 Icon Generator", page_icon="🎨", layout="c
 # Your Hugging Face API key (⚠️ Not recommended for public use)
 HUGGINGFACE_API_KEY = "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"
 
-# Function to generate icons using Hugging Face Inference API
-def generate_icons(description, num_images=4):
-    try:
-        headers = {
-            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
-        }
-        payload = {
-            "inputs": description,
-            "options": {
-                "use_gpu": True  # Use GPU if available
-            },
-            "parameters": {
-                "num_inference_steps": 50  # Adjust as needed
-            }
-        }
-        
-        # Initialize list to store generated images
-        images = []
-        
-        for _ in range(num_images):
-            # Send POST request to Hugging Face Inference API
-            response = requests.post(
-                "https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4",
-                headers=headers,
-                json=payload
-            )
-            if response.status_code == 200:
-                # Check if response contains image data
-                if 'image/' in response.headers.get('Content-Type', ''):
-                    image = Image.open(io.BytesIO(response.content))
-                    images.append(image)
+# Function to generate icons using Hugging Face Inference API with retry mechanism
+def generate_icons(description, num_images=4, max_retries=5, delay=10):
+    images = []
+    for i in range(num_images):
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
+                }
+                payload = {
+                    "inputs": description,
+                    "options": {
+                        "use_gpu": True  # Use GPU if available
+                    }
+                }
+                
+                # Send POST request to Hugging Face Inference API
+                response = requests.post(
+                    "https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    # Check if response contains image data
+                    if 'image/' in response.headers.get('Content-Type', ''):
+                        image = Image.open(io.BytesIO(response.content))
+                        images.append(image)
+                        break  # Exit retry loop on success
+                    else:
+                        # If not image, try to parse JSON for error message
+                        error_info = response.json()
+                        error_message = error_info.get("error", "Unknown error.")
+                        st.error(f"Icon generation failed: {error_message}")
+                        break  # Exit retry loop on error
+                elif response.status_code == 503:
+                    # Service unavailable, possibly model loading
+                    st.warning(f"Model is currently loading. Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    attempt += 1
+                    time.sleep(delay)
                 else:
-                    # If not image, try to parse JSON for error message
-                    error_info = response.json()
-                    error_message = error_info.get("error", "Unknown error.")
-                    st.error(f"Icon generation failed: {error_message}")
-                    return None
-            else:
-                # Attempt to parse error message from JSON
-                try:
-                    error_info = response.json()
-                    error_message = error_info.get("error", "Unknown error.")
-                    st.error(f"Icon generation failed: {error_message}")
-                except ValueError:
-                    st.error(f"Icon generation failed: {response.status_code} - {response.text}")
-                return None
-        
-        return images if images else None
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
-        return None
+                    # Attempt to parse error message from JSON
+                    try:
+                        error_info = response.json()
+                        error_message = error_info.get("error", "Unknown error.")
+                        st.error(f"Icon generation failed: {error_message}")
+                    except ValueError:
+                        st.error(f"Icon generation failed: {response.status_code} - {response.text}")
+                    break  # Exit retry loop on error
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {e}")
+                break  # Exit retry loop on exception
+        else:
+            st.error(f"Failed to generate icon {i + 1} after {max_retries} attempts.")
+    
+    return images if images else None
 
 # User Interface
 st.title("🎨 Icon Generator")
